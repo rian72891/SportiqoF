@@ -1,3 +1,10 @@
+<!-- 
+    INSTRUÇÕES PARA FUNCIONAMENTO PLENO:
+    1. Google Login: Substitua '782288107631-8hlnhk77ueof48at3sbb936ujbohtkh4.apps.googleusercontent.com' pelo seu ID do Google Cloud Console.
+    2. Facebook Login: Substitua 'YOUR_FACEBOOK_APP_ID' pelo seu ID do Facebook Developers.
+    3. EmailJS: Substitua 'user_YOUR_PUBLIC_KEY', 'YOUR_SERVICE_ID' e 'YOUR_TEMPLATE_ID' pelos seus IDs do EmailJS.com.
+    O sistema já está com a lógica funcional, bastando inserir suas chaves de API.
+-->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -13,6 +20,10 @@
     <title>Sports World - Notícias Esportivas</title>
     <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- SDKs para Login Social e EmailJS -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script async defer crossorigin="anonymous" src="https://connect.facebook.net/pt_BR/sdk.js"></script>
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
     <style>
         :root {
             --wolf-red: #FF0000;
@@ -5535,29 +5546,119 @@
             localStorage.setItem('isLoggedIn', 'true');
             setTimeout(() => { closeLogin(); location.reload(); }, 1500);
         }
-        function handleForgotPassword() {
+        async function handleForgotPassword() {
             const email = document.getElementById('loginEmail').value.trim();
             const errorDiv = document.getElementById('loginError');
             const successDiv = document.getElementById('loginSuccess');
+            const forgotBtn = document.querySelector('.forgot-password');
+            
             errorDiv.classList.remove('show');
             successDiv.classList.remove('show');
+            
             if (!email) {
-                errorDiv.textContent = 'Por favor, insira seu email';
+                errorDiv.textContent = 'Por favor, insira seu email acima para recuperar a senha';
                 errorDiv.classList.add('show');
                 return;
             }
+            
             if (!validateEmail(email)) {
                 errorDiv.textContent = 'Por favor, insira um email válido';
                 errorDiv.classList.add('show');
                 return;
             }
-            successDiv.textContent = 'Email de recuperação enviado para ' + email;
-            successDiv.classList.add('show');
+
+            try {
+                forgotBtn.textContent = 'Enviando...';
+                forgotBtn.style.pointerEvents = 'none';
+                
+                // Envio real usando EmailJS
+                const templateParams = {
+                    to_email: email,
+                    reset_link: window.location.href + "?reset=true&email=" + encodeURIComponent(email)
+                };
+
+                await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+                
+                successDiv.textContent = 'E-mail de redefinição enviado com sucesso para ' + email;
+                successDiv.classList.add('show');
+                showToast('E-mail enviado! Verifique sua caixa de entrada.');
+            } catch (error) {
+                console.error('Erro ao enviar e-mail:', error);
+                errorDiv.textContent = 'Erro ao enviar e-mail. Tente novamente mais tarde.';
+                errorDiv.classList.add('show');
+            } finally {
+                forgotBtn.textContent = 'Esqueceu a senha?';
+                forgotBtn.style.pointerEvents = 'auto';
+            }
         }
         function handleSocialLogin(provider) {
-            const successDiv = document.getElementById('loginSuccess');
-            successDiv.textContent = 'Conectando com ' + provider + '...';
-            successDiv.classList.add('show');
+            if (provider === 'Google') {
+                loginWithGoogle();
+            } else if (provider === 'Facebook') {
+                loginWithFacebook();
+            }
+        }
+
+        function loginWithGoogle() {
+            try {
+                if (typeof google === 'undefined') {
+                    showToast('Erro: SDK do Google não carregado.', 'error');
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: "782288107631-8hlnhk77ueof48at3sbb936ujbohtkh4.apps.googleusercontent.com",
+                    callback: handleGoogleResponse
+                });
+                google.accounts.id.prompt();
+            } catch (err) {
+                console.error('Erro Google:', err);
+                showToast('Erro ao iniciar Google Login. Verifique o Client ID.', 'error');
+            }
+        }
+
+        function handleGoogleResponse(response) {
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            const userData = {
+                id: 'google_' + payload.sub,
+                name: payload.name,
+                email: payload.email,
+                picture: payload.picture,
+                provider: 'google'
+            };
+            processSocialLogin(userData);
+        }
+
+        function loginWithFacebook() {
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    FB.api('/me', {fields: 'name,email,picture'}, function(userData) {
+                        const formattedUser = {
+                            id: 'fb_' + userData.id,
+                            name: userData.name,
+                            email: userData.email,
+                            picture: userData.picture.data.url,
+                            provider: 'facebook'
+                        };
+                        processSocialLogin(formattedUser);
+                    });
+                } else {
+                    showToast('Login com Facebook cancelado', 'error');
+                }
+            }, {scope: 'public_profile,email'});
+        }
+
+        function processSocialLogin(userData) {
+            currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            if (!users.find(u => u.email === userData.email)) {
+                users.push(userData);
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+            updateUserInterface();
+            closeLogin();
+            showToast(`Bem-vindo, ${userData.name}!`);
+            setTimeout(() => { location.reload(); }, 1000);
         }
         document.addEventListener('DOMContentLoaded', () => {
             // Remove loading screen
@@ -6922,29 +7023,119 @@
             localStorage.setItem('isLoggedIn', 'true');
             setTimeout(() => { closeLogin(); location.reload(); }, 1500);
         }
-        function handleForgotPassword() {
+        async function handleForgotPassword() {
             const email = document.getElementById('loginEmail').value.trim();
             const errorDiv = document.getElementById('loginError');
             const successDiv = document.getElementById('loginSuccess');
+            const forgotBtn = document.querySelector('.forgot-password');
+            
             errorDiv.classList.remove('show');
             successDiv.classList.remove('show');
+            
             if (!email) {
-                errorDiv.textContent = 'Por favor, insira seu email';
+                errorDiv.textContent = 'Por favor, insira seu email acima para recuperar a senha';
                 errorDiv.classList.add('show');
                 return;
             }
+            
             if (!validateEmail(email)) {
                 errorDiv.textContent = 'Por favor, insira um email válido';
                 errorDiv.classList.add('show');
                 return;
             }
-            successDiv.textContent = 'Email de recuperação enviado para ' + email;
-            successDiv.classList.add('show');
+
+            try {
+                forgotBtn.textContent = 'Enviando...';
+                forgotBtn.style.pointerEvents = 'none';
+                
+                // Envio real usando EmailJS
+                const templateParams = {
+                    to_email: email,
+                    reset_link: window.location.href + "?reset=true&email=" + encodeURIComponent(email)
+                };
+
+                await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+                
+                successDiv.textContent = 'E-mail de redefinição enviado com sucesso para ' + email;
+                successDiv.classList.add('show');
+                showToast('E-mail enviado! Verifique sua caixa de entrada.');
+            } catch (error) {
+                console.error('Erro ao enviar e-mail:', error);
+                errorDiv.textContent = 'Erro ao enviar e-mail. Tente novamente mais tarde.';
+                errorDiv.classList.add('show');
+            } finally {
+                forgotBtn.textContent = 'Esqueceu a senha?';
+                forgotBtn.style.pointerEvents = 'auto';
+            }
         }
         function handleSocialLogin(provider) {
-            const successDiv = document.getElementById('loginSuccess');
-            successDiv.textContent = 'Conectando com ' + provider + '...';
-            successDiv.classList.add('show');
+            if (provider === 'Google') {
+                loginWithGoogle();
+            } else if (provider === 'Facebook') {
+                loginWithFacebook();
+            }
+        }
+
+        function loginWithGoogle() {
+            try {
+                if (typeof google === 'undefined') {
+                    showToast('Erro: SDK do Google não carregado.', 'error');
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: "782288107631-8hlnhk77ueof48at3sbb936ujbohtkh4.apps.googleusercontent.com",
+                    callback: handleGoogleResponse
+                });
+                google.accounts.id.prompt();
+            } catch (err) {
+                console.error('Erro Google:', err);
+                showToast('Erro ao iniciar Google Login. Verifique o Client ID.', 'error');
+            }
+        }
+
+        function handleGoogleResponse(response) {
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            const userData = {
+                id: 'google_' + payload.sub,
+                name: payload.name,
+                email: payload.email,
+                picture: payload.picture,
+                provider: 'google'
+            };
+            processSocialLogin(userData);
+        }
+
+        function loginWithFacebook() {
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    FB.api('/me', {fields: 'name,email,picture'}, function(userData) {
+                        const formattedUser = {
+                            id: 'fb_' + userData.id,
+                            name: userData.name,
+                            email: userData.email,
+                            picture: userData.picture.data.url,
+                            provider: 'facebook'
+                        };
+                        processSocialLogin(formattedUser);
+                    });
+                } else {
+                    showToast('Login com Facebook cancelado', 'error');
+                }
+            }, {scope: 'public_profile,email'});
+        }
+
+        function processSocialLogin(userData) {
+            currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            if (!users.find(u => u.email === userData.email)) {
+                users.push(userData);
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+            updateUserInterface();
+            closeLogin();
+            showToast(`Bem-vindo, ${userData.name}!`);
+            setTimeout(() => { location.reload(); }, 1000);
         }
         document.addEventListener('DOMContentLoaded', function() {
             initCookieBanner();
@@ -7222,29 +7413,119 @@ const origHideAllPages=hideAllPages;hideAllPages=function(){if(origHideAllPages)
             localStorage.setItem('isLoggedIn', 'true');
             setTimeout(() => { closeLogin(); location.reload(); }, 1500);
         }
-        function handleForgotPassword() {
+        async function handleForgotPassword() {
             const email = document.getElementById('loginEmail').value.trim();
             const errorDiv = document.getElementById('loginError');
             const successDiv = document.getElementById('loginSuccess');
+            const forgotBtn = document.querySelector('.forgot-password');
+            
             errorDiv.classList.remove('show');
             successDiv.classList.remove('show');
+            
             if (!email) {
-                errorDiv.textContent = 'Por favor, insira seu email';
+                errorDiv.textContent = 'Por favor, insira seu email acima para recuperar a senha';
                 errorDiv.classList.add('show');
                 return;
             }
+            
             if (!validateEmail(email)) {
                 errorDiv.textContent = 'Por favor, insira um email válido';
                 errorDiv.classList.add('show');
                 return;
             }
-            successDiv.textContent = 'Email de recuperação enviado para ' + email;
-            successDiv.classList.add('show');
+
+            try {
+                forgotBtn.textContent = 'Enviando...';
+                forgotBtn.style.pointerEvents = 'none';
+                
+                // Envio real usando EmailJS
+                const templateParams = {
+                    to_email: email,
+                    reset_link: window.location.href + "?reset=true&email=" + encodeURIComponent(email)
+                };
+
+                await emailjs.send('YOUR_SERVICE_ID', 'YOUR_TEMPLATE_ID', templateParams);
+                
+                successDiv.textContent = 'E-mail de redefinição enviado com sucesso para ' + email;
+                successDiv.classList.add('show');
+                showToast('E-mail enviado! Verifique sua caixa de entrada.');
+            } catch (error) {
+                console.error('Erro ao enviar e-mail:', error);
+                errorDiv.textContent = 'Erro ao enviar e-mail. Tente novamente mais tarde.';
+                errorDiv.classList.add('show');
+            } finally {
+                forgotBtn.textContent = 'Esqueceu a senha?';
+                forgotBtn.style.pointerEvents = 'auto';
+            }
         }
         function handleSocialLogin(provider) {
-            const successDiv = document.getElementById('loginSuccess');
-            successDiv.textContent = 'Conectando com ' + provider + '...';
-            successDiv.classList.add('show');
+            if (provider === 'Google') {
+                loginWithGoogle();
+            } else if (provider === 'Facebook') {
+                loginWithFacebook();
+            }
+        }
+
+        function loginWithGoogle() {
+            try {
+                if (typeof google === 'undefined') {
+                    showToast('Erro: SDK do Google não carregado.', 'error');
+                    return;
+                }
+                google.accounts.id.initialize({
+                    client_id: "782288107631-8hlnhk77ueof48at3sbb936ujbohtkh4.apps.googleusercontent.com",
+                    callback: handleGoogleResponse
+                });
+                google.accounts.id.prompt();
+            } catch (err) {
+                console.error('Erro Google:', err);
+                showToast('Erro ao iniciar Google Login. Verifique o Client ID.', 'error');
+            }
+        }
+
+        function handleGoogleResponse(response) {
+            const payload = JSON.parse(atob(response.credential.split('.')[1]));
+            const userData = {
+                id: 'google_' + payload.sub,
+                name: payload.name,
+                email: payload.email,
+                picture: payload.picture,
+                provider: 'google'
+            };
+            processSocialLogin(userData);
+        }
+
+        function loginWithFacebook() {
+            FB.login(function(response) {
+                if (response.authResponse) {
+                    FB.api('/me', {fields: 'name,email,picture'}, function(userData) {
+                        const formattedUser = {
+                            id: 'fb_' + userData.id,
+                            name: userData.name,
+                            email: userData.email,
+                            picture: userData.picture.data.url,
+                            provider: 'facebook'
+                        };
+                        processSocialLogin(formattedUser);
+                    });
+                } else {
+                    showToast('Login com Facebook cancelado', 'error');
+                }
+            }, {scope: 'public_profile,email'});
+        }
+
+        function processSocialLogin(userData) {
+            currentUser = userData;
+            localStorage.setItem('currentUser', JSON.stringify(userData));
+            const users = JSON.parse(localStorage.getItem('users')) || [];
+            if (!users.find(u => u.email === userData.email)) {
+                users.push(userData);
+                localStorage.setItem('users', JSON.stringify(users));
+            }
+            updateUserInterface();
+            closeLogin();
+            showToast(`Bem-vindo, ${userData.name}!`);
+            setTimeout(() => { location.reload(); }, 1000);
         }
         document.addEventListener('DOMContentLoaded', function() {
             const firstTab = document.querySelector('.group-tab');
